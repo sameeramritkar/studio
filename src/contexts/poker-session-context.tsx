@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Participant, User, UserRole } from '@/lib/types';
@@ -70,8 +71,7 @@ export const PokerSessionProvider = ({ children }: { children: ReactNode }) => {
       const storedSession = localStorage.getItem('pokerSessionState');
       if (storedSession) {
         const parsedSession = JSON.parse(storedSession);
-         // Ensure all fields are present, merge with defaults if not
-        setSessionState(prevState => ({...prevState, ...parsedSession}));
+        setSessionState(prevState => ({...initialPokerSessionState, ...prevState, ...parsedSession}));
       }
     } catch (error) {
       console.error("Failed to parse session state from localStorage", error);
@@ -82,6 +82,29 @@ export const PokerSessionProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('pokerSessionState', JSON.stringify(sessionState));
   }, [sessionState]);
+
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'pokerSessionState') {
+        if (event.newValue) { 
+          try {
+            const updatedState = JSON.parse(event.newValue);
+            setSessionState(updatedState); 
+          } catch (error) {
+            console.error("Failed to parse updated session state from storage event", error);
+          }
+        } else { 
+          setSessionState(initialPokerSessionState); 
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
 
   const setParticipants: Dispatch<SetStateAction<Participant[]>> = (updater) => {
     setSessionState(prev => ({ ...prev, participants: typeof updater === 'function' ? updater(prev.participants) : updater }));
@@ -99,7 +122,7 @@ export const PokerSessionProvider = ({ children }: { children: ReactNode }) => {
 
   const addParticipant = useCallback((userToAdd: User) => {
     setSessionState(prev => {
-      if (prev.participants.find(p => p.id === userToAdd.id)) return prev; // Already exists
+      if (prev.participants.find(p => p.id === userToAdd.id)) return prev; 
       const newParticipant: Participant = { ...userToAdd, hasVoted: false };
       return { ...prev, participants: [...prev.participants, newParticipant] };
     });
@@ -111,7 +134,7 @@ export const PokerSessionProvider = ({ children }: { children: ReactNode }) => {
 
   const castVote = useCallback((userId: string, vote: string | number) => {
     setSessionState(prev => {
-      if (!prev.votingOpen || prev.votesRevealed) return prev; // Can only vote if open and not revealed
+      if (!prev.votingOpen || prev.votesRevealed) return prev; 
       return {
         ...prev,
         participants: prev.participants.map(p =>
@@ -128,19 +151,16 @@ export const PokerSessionProvider = ({ children }: { children: ReactNode }) => {
 
   const startNewStory = useCallback((newStoryName: string) => {
     setSessionState(prev => ({
-      ...prev,
-      storyName: newStoryName,
-      votingOpen: true,
-      votesRevealed: false,
-      averageVote: null,
-      voteCounts: {},
-      participants: prev.participants.map(p => ({ ...p, vote: undefined, hasVoted: false })),
+      ...initialPokerSessionState, // Reset most fields from initial state
+      participants: prev.participants.map(p => ({ ...p, vote: undefined, hasVoted: false })), // Keep participants but reset votes
+      storyName: newStoryName, // Set the new story name
+      votingOpen: true, // Open voting
     }));
   }, []);
 
   const revealVotesAction = useCallback(() => {
     setSessionState(prev => {
-      if (!prev.votingOpen && prev.votesRevealed) return prev; // Already revealed or was never open
+      if (!prev.votingOpen && prev.votesRevealed && !prev.storyName) return prev; 
       const results = calculateResults(prev.participants);
       return {
         ...prev,
@@ -167,8 +187,6 @@ export const PokerSessionProvider = ({ children }: { children: ReactNode }) => {
     if (currentUser) {
       addParticipant(currentUser);
     }
-    // This effect should run when currentUser changes, typically on login.
-    // No cleanup needed for removeParticipant here as logout handles it.
   }, [currentUser, addParticipant]);
 
   return (
@@ -198,3 +216,4 @@ export const usePokerSession = () => {
   }
   return context;
 };
+
