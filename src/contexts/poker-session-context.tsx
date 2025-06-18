@@ -74,19 +74,17 @@ export const PokerSessionProvider = ({ children }: { children: ReactNode }) => {
         // Merge stored session with initial state.
         // This ensures all keys from initialPokerSessionState are present,
         // and values from parsedSession override them if they exist.
-        // It handles cases where parsedSession might be incomplete or from an older structure.
         setSessionState({ ...initialPokerSessionState, ...parsedSession });
       } else {
-        // No stored session, so state remains initialPokerSessionState (already set by useState)
-        // For clarity, explicitly set if needed, but useState default is usually sufficient.
+        // No stored session, so state remains initialPokerSessionState
         setSessionState(initialPokerSessionState);
       }
     } catch (error) {
       console.error("Failed to parse or load session state from localStorage", error);
-      localStorage.removeItem('pokerSessionState'); // Clear potentially corrupted data
-      setSessionState(initialPokerSessionState); // Reset to a known good state
+      localStorage.removeItem('pokerSessionState'); 
+      setSessionState(initialPokerSessionState); 
     }
-  }, []); // Run once on mount
+  }, []); 
 
   useEffect(() => {
     localStorage.setItem('pokerSessionState', JSON.stringify(sessionState));
@@ -98,14 +96,12 @@ export const PokerSessionProvider = ({ children }: { children: ReactNode }) => {
         if (event.newValue) { 
           try {
             const updatedState = JSON.parse(event.newValue);
-            setSessionState(updatedState); 
+            // Merge with initial state to ensure all keys are present, similar to initial load
+            setSessionState(prev => ({ ...initialPokerSessionState, ...updatedState })); 
           } catch (error) {
             console.error("Failed to parse updated session state from storage event", error);
-            // Optionally, reset to initial state if parsing fails consistently.
-            // setSessionState(initialPokerSessionState); 
           }
         } else { 
-          // This means localStorage was cleared for this key (e.g., by logout)
           setSessionState(initialPokerSessionState); 
         }
       }
@@ -162,17 +158,20 @@ export const PokerSessionProvider = ({ children }: { children: ReactNode }) => {
   }, [sessionState.participants]);
 
   const startNewStory = useCallback((newStoryName: string) => {
-    setSessionState(prev => ({
-      ...initialPokerSessionState, 
-      participants: prev.participants.map(p => ({ ...p, vote: undefined, hasVoted: false })), 
-      storyName: newStoryName, 
-      votingOpen: true, 
-    }));
+    setSessionState(prev => {
+      const updatedParticipants = prev.participants.map(p => ({ ...p, vote: undefined, hasVoted: false }));
+      return {
+        ...initialPokerSessionState, 
+        participants: updatedParticipants, 
+        storyName: newStoryName, 
+        votingOpen: true, 
+      };
+    });
   }, []);
 
   const revealVotesAction = useCallback(() => {
     setSessionState(prev => {
-      if (!prev.storyName && !prev.votingOpen && prev.votesRevealed) return prev; // Prevent action if no story was ever active or already revealed without one
+      if (!prev.storyName && !prev.votingOpen && prev.votesRevealed) return prev; 
       const results = calculateResults(prev.participants);
       return {
         ...prev,
@@ -186,7 +185,7 @@ export const PokerSessionProvider = ({ children }: { children: ReactNode }) => {
 
   const resetRound = useCallback(() => {
     setSessionState(prev => ({
-      ...prev, // Keep current storyName and other non-reset fields
+      ...prev, 
       votingOpen: true,
       votesRevealed: false,
       averageVote: null,
